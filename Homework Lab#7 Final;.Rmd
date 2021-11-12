@@ -1,0 +1,186 @@
+---
+title: "Homework Lab#7"
+author: "Thakur Prasad Ghimire"
+date: "11/4/2021"
+output: word_document
+---
+
+```{r}
+ load("C:/Homework EcoB2000/lab#7/Household_Pulse_data_v2 (2).RData")
+
+```
+
+
+#Analyze the get vaxx variable
+```{r}
+table(Household_Pulse_data$RECVDVACC)
+```
+# Explain what you’re doing with NA.?
+First lets count   the missing values in the Get vaccine variable
+
+
+```{r}
+sum(is.na(Household_Pulse_data$RECVDVACC))
+```
+#Then lets replace  NA strings with NULL according to R
+
+```{r}
+library(dplyr)
+Household_Pulse_data= Household_Pulse_data %>% 
+  mutate(RECVDVACC = na_if(RECVDVACC, "NA"))
+
+```
+
+#count missing values in the RECVDVACC variable
+```{r}
+sum(is.na(Household_Pulse_data$RECVDVACC))
+```
+
+#Create the dependent variable vaxx
+
+```{r}
+Household_Pulse_data$vaxx <-(Household_Pulse_data$RECVDVACC == "yes got vaxx")
+Household_Pulse_data$vaxx =  as.factor(Household_Pulse_data$vaxx)
+table(Household_Pulse_data$vaxx)
+```
+
+#First decide on how you’re defining your subgroup (all adults or 12+? Within certain age? Other?)
+- select 12-17 subgroup
+
+
+```{r}
+dim(Household_Pulse_data) #data dimension
+df_household = Household_Pulse_data[Household_Pulse_data$KIDS_12_17Y!="NA",]
+dim(df_household) #data dimension
+```
+
+Then find some basic statistics – what fraction are not vaxxed?
+
+
+```{r}
+a=table(df_household$vaxx)
+barplot(a,main="Vaxx Comparison Using BarPlot",
+        ylab="Count",
+        xlab="Vaxx",
+        col=rainbow(16),
+        legend=rownames(a))
+pct=round(a/sum(a)*100)
+lbs=paste(c("FALSE","TRUE")," ",pct,"%",sep=" ")
+library(plotrix)
+pie3D(a,labels=lbs,
+      main="Pie Chart Showing  Non-vaxxed and vaxxed ")
+
+```
+
+
+(Later go back to look at simple stats for subgroups to see if there are sharp differences.)
+other subgroups are: KIDS_12_17Y
+- select 12-17Y subgroup
+
+```{r}
+df_KidsLT5Y = Household_Pulse_data[Household_Pulse_data$KIDS_LT5Y!="NA",]
+#plot pie chart 
+b=table(df_KidsLT5Y$vaxx)
+pct2=round(b/sum(b)*100)
+lbs=paste(c("FALSE","TRUE")," ",pct,"%",sep=" ")
+library(plotrix)
+pie3D(b,labels=lbs,
+      main="Pie Chart Showing  Non-vaxxed and vaxxed ")
+```
+
+other subgroups are: KIDS_5_11Y
+- select 5-11Y subgroup
+```{r}
+df_Kids5_11Y = Household_Pulse_data[Household_Pulse_data$KIDS_5_11Y!="NA",]
+#plot pie chart 
+c=table(df_Kids5_11Y$vaxx)
+pct3=round(c/sum(c)*100)
+lbs=paste(c("FALSE","TRUE")," ",pct,"%",sep=" ")
+library(plotrix)
+pie3D(b,labels=lbs,
+      main="Pie Chart Showing  Non-vaxxed and vaxxed ")
+
+```
+
+**NO, there were no sharp differences**
+
+# Run several different types of models to explain vaccination rates with  some explanatory variables, vaxx ~ TBIRTH_YEAR + EEDUC + MS + RRACE + RHISPANIC + GENID_DESCRIBE + REGION.
+
+ Slice the dataframe to include only the features named above
+```{r}
+df_household = subset(df_household,select = c(vaxx,EEDUC,MS,RRACE,
+               RHISPANIC,GENID_DESCRIBE,REGION))
+head(df_household)
+```
+
+We want to set up the data in a way that is common to all of the models. Some of the estimation procedures are not as tolerant about factors so we need to set those as dummies. Some are also intolerant of NA values. I’ll show the code for the basic set of explanatory variables, which you can modify as you see fit. 
+
+
+```{r}
+str(df_household)
+```
+
+```{r}
+library(dummies)
+
+vars=c("EEDUC","MS" ,"RRACE","RHISPANIC","GENID_DESCRIBE","REGION")
+df_household[,vars] <- lapply(df_household[,vars] , factor)
+df_new<-dummy.data.frame(df_household,names = vars,sep=".")
+dim(df_new)
+```
+
+
+
+ split the data  into train and test data 80% of the sample size
+```{r}
+
+set.seed(654321)
+
+smp_size <- floor(0.80 * nrow(df_new))
+train_ind <- sample(seq_len(nrow(df_new)), size = smp_size)
+train.set <- df_new[train_ind, ]
+test.set <- df_new[-train_ind, ]
+
+dim(train.set)
+
+str(train.set)
+
+```
+
+
+
+## Logistic regression model
+```{r}
+model_logit1 <- glm(vaxx~., family = binomial, data = train.set)
+summary(model_logit1)
+
+```
+
+### Confusion matrix
+
+
+```{r}
+library(caret)
+pred_vals <- predict(model_logit1, test.set[,-1], type = "response")
+pred_model_logit1 <- as.factor(pred_vals > 0.5)
+table(pred = pred_model_logit1, true = test.set$vaxx)
+confusionMatrix(pred_model_logit1,test.set$vaxx,positive = "TRUE")
+
+```
+
+## Linear model; OLS model (convert vaxx into numeric)
+```{r}
+train.set$vaxx = ifelse(train.set$vaxx =="TRUE",1,0)
+test.set$vaxx = ifelse(test.set =="TRUE",1,0)
+model_lpm1 <- lm(vaxx~., data = train.set)
+summary(model_lpm1)
+```
+
+
+
+
+
+
+
+
+
